@@ -1,0 +1,125 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = "file:./dev.db"
+}
+
+// Enums
+model User {
+  id                String    @id @default(uuid())
+  email             String    @unique
+  encrypted_password String
+  full_name         String
+  role              String    // Store as string for SQLite compatibility (or use Enum if Postgres later)
+  hospital_id       String?
+  blood_bank_id     String?
+  created_at        DateTime  @default(now())
+
+  // Relations
+  hospital          Hospital? @relation(fields: [hospital_id], references: [id])
+  blood_bank        BloodBank? @relation(fields: [blood_bank_id], references: [id])
+  audit_logs        AuditLog[]
+  updated_beds      BedInventory[]
+  updated_blood     BloodInventory[]
+}
+
+model Hospital {
+  id              String    @id @default(uuid())
+  name            String
+  district        String
+  latitude        Decimal?
+  longitude       Decimal?
+  address         String?
+  phone_emergency String?
+  is_active       Boolean   @default(true)
+  last_updated_at DateTime?
+  
+  // New Fields
+  image           String?   // URL to image
+  facilities      String    @default("[]") // JSON stringified array of strings e.g. ["ICU", "Ventilator"]
+  type            String    @default("Government") // Government, Private
+  website         String?
+  email           String?
+  description     String?
+  photos          String    @default("[]") // JSON stringified array of URLs
+
+  // Relations
+  bed_inventory   BedInventory?
+  users           User[]
+}
+
+model BedInventory {
+  hospital_id         String   @id
+  icu_total           Int      @default(0)
+  icu_available       Int      @default(0)
+  general_total       Int      @default(0)
+  general_available   Int      @default(0)
+  pediatric_total     Int      @default(0)
+  pediatric_available Int      @default(0)
+  maternity_total     Int      @default(0)
+  maternity_available Int      @default(0)
+  isolation_total     Int      @default(0)
+  isolation_available Int      @default(0)
+  updated_at          DateTime @default(now())
+  updated_by_id       String?
+
+  // Relations
+  hospital            Hospital @relation(fields: [hospital_id], references: [id])
+  updated_by          User?    @relation(fields: [updated_by_id], references: [id])
+}
+
+model BloodBank {
+  id              String    @id @default(uuid())
+  name            String
+  district        String
+  latitude        Decimal?
+  longitude       Decimal?
+  phone           String?
+  last_updated_at DateTime?
+
+  // New Fields
+  image           String?
+  website         String?
+  email           String?
+  operating_hours String?
+
+  // Relations
+  inventory       BloodInventory[]
+  users           User[]
+}
+
+model BloodInventory {
+  id              String    @id @default(uuid())
+  blood_bank_id   String
+  blood_group     String    // A+, A-, B+, B-, AB+, AB-, O+, O-
+  units_available Int       @default(0)
+  updated_at      DateTime  @default(now())
+  updated_by_id   String?
+
+  // Relations
+  blood_bank      BloodBank @relation(fields: [blood_bank_id], references: [id])
+  updated_by      User?     @relation(fields: [updated_by_id], references: [id])
+
+  @@unique([blood_bank_id, blood_group])
+}
+
+model AuditLog {
+  id              String    @id @default(uuid())
+  entity_type     String    // 'hospital_bed', 'blood_stock'
+  entity_id       String
+  action_type     String    // 'UPDATE', 'LOCK', 'UNLOCK'
+  performed_by_id String?
+  previous_value  String?   // JSON stringified
+  new_value       String?   // JSON stringified
+  timestamp       DateTime  @default(now())
+  ip_address      String?
+
+  // Relations
+  performed_by    User?     @relation(fields: [performed_by_id], references: [id])
+}
